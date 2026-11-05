@@ -1,0 +1,50 @@
+name: Build NTFS Menu
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app
+        run: |
+          APP_NAME="NTFS Menu"
+          mkdir -p "$APP_NAME.app/Contents/MacOS" "$APP_NAME.app/Contents/Resources"
+          swiftc -O -o "$APP_NAME.app/Contents/MacOS/$APP_NAME" app/main.swift -framework AppKit -framework Foundation
+          cp app/Info.plist "$APP_NAME.app/Contents/Info.plist"
+          codesign --force --deep --sign - "$APP_NAME.app"
+          ls -la "$APP_NAME.app/Contents/MacOS/"
+
+      - name: Stage DMG
+        run: |
+          mkdir -p dmg-staging
+          cp -R "NTFS Menu.app" dmg-staging/
+          cp scripts/Cai-dat-NTFS-Menu.command dmg-staging/"Cài đặt NTFS Menu.command"
+          cp scripts/cai-dat.sh dmg-staging/
+          cp scripts/kiem-tra.command dmg-staging/
+          cp HUONG-DAN-CAI-DAT-VA-TEST.md dmg-staging/
+          cp README.md dmg-staging/
+          chmod +x dmg-staging/*.command dmg-staging/*.sh
+          hdiutil create -volname "NTFS Menu v1.1" -srcfolder dmg-staging -ov -format UDZO "NTFS-Menu-v1.1.dmg"
+          ls -lh NTFS-Menu-v1.1.dmg
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view v1.1 >/dev/null 2>&1; then
+            gh release upload v1.1 "NTFS-Menu-v1.1.dmg" --clobber
+          else
+            gh release create v1.1 "NTFS-Menu-v1.1.dmg" --title "NTFS Menu v1.1 · 05/11/2026" --notes "App build sẵn + setup thật (không cần Xcode Command Line Tools, không build lại trên máy anh). Trong DMG: NTFS Menu.app (build sẵn) + Cài đặt NTFS Menu.command + Kiểm tra.command + hướng dẫn. Mở DMG rồi double-click file Cài đặt. Sau đó duyệt extension macFUSE trong Cài đặt hệ thống rồi test trên ổ trống trước."
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NTFS-Menu-v1.1.dmg
+          path: NTFS-Menu-v1.1.dmg
